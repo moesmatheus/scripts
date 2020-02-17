@@ -1,0 +1,85 @@
+# Carregar arquivo
+CASAX <- read_excel("CASAX.xlsx")
+
+xx=CASAX
+
+#deveriamos analisas vars, transformar, outliers missing...
+boxplot(xx$preco)
+xx$price=log(xx$preco)
+boxplot(xx$price)
+
+xx=xx[,-6]
+
+#transformar em dummies
+qq=model.matrix(data=xx,~.)
+colnames(qq)
+qq=qq[,-1]
+
+
+#padronizar as vars entre 0 e 1 
+peq=apply(qq,2,min);peq
+gde=apply(qq, 2, max); gde
+amp=gde-peq;amp #amplitude
+
+zz=scale(qq,center = peq,scale = amp)
+zz=as.data.frame(zz)
+#separar em duas amostras
+set.seed(2035)
+flag=sample(1:1200,800)
+lrn=zz[flag,]
+tst=zz[-flag,]
+
+#vamos separar matriz de inputs e outputs
+x_lrn=lrn[,1:7]
+y_lrn=lrn[,8]
+x_tst=tst[,1:7]
+y_tst=tst[,8]
+
+
+#rodar o nnet
+install.packages("nnet")
+
+library(nnet)
+
+SSE=NULL 
+for(i in 1:20)
+{set.seed(100*i)
+  rn=nnet(x_lrn,y_lrn,size=3,linout = T,maxit = 10000)
+  yhat=predict(rn,newdata = x_tst)
+  res=y_tst-yhat
+  SSE[i]=sum(res^2)
+}
+SSE;min(SSE)
+
+
+set.seed(200)
+rn=nnet(x_lrn,y_lrn,size=3,linout = T,maxit = 10000)
+yhat=predict(rn,newdata = x_tst)
+res=y_tst-yhat
+SSEx=sum(res^2);SSEx
+
+
+#quero prever o valor da casa da Kelly no bairro AA
+colnames(x_tst)
+kk=data.frame(bairroBB=0,bairroCC=0,bairroDD=0,quartos=3,area=160,vagas=2,idade=10)
+lit=peq[1:7]; big=gde[1:7]
+kk.pad=scale(kk,center = lit,scale = big-lit)
+price.kelly=predict(rn, newdata = kk.pad)
+price.kelly #nao esqueçam que é transformado
+qq=as.data.frame(qq)
+pricek1=price.kelly*(max(qq$price)-min(qq$price))+min(qq$price)
+pricek1
+precoestimado=exp(pricek1)
+precoestimado
+
+
+#comparação com regressao múltipla
+reg=lm(data = lrn, price~.)
+yreg=predict(reg, newdata = tst)
+resreg=yreg-tst$price
+SSEREG=sum(resreg^2);SSEREG
+
+
+
+
+
